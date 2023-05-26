@@ -22,6 +22,23 @@ func randLetter() string {
 	return string(letterRunes[rand.Intn(len(letterRunes))])
 }
 
+func TestPartitionedCache(t *testing.T) {
+	sizeOfPartition := 16
+	numPartitions := 4
+	num := 6
+
+	cache := newPartitionedCached[string, int](sizeOfPartition, numPartitions, time.Hour)
+	_, exists := cache.GetOrCreate("A", &num)
+	assert.False(t, exists)
+
+	exists = cache.HasKey("A")
+	assert.True(t, exists)
+
+	val, exists := cache.GetOrCreate("A", nil)
+	assert.True(t, exists)
+	assert.Equal(t, 6, *val)
+}
+
 func TestPartitionedCacheEviction(t *testing.T) {
 	sizeOfPartition := 16
 	numPartitions := 4
