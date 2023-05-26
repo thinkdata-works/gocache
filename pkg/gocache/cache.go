@@ -22,6 +22,14 @@ func NewCache[K any, V any](partitionSize, totalPartitions int, cacheExpiry time
 	}
 }
 
+func (c *Cache[K, V]) HasKey(k K) (bool, error) {
+	key, err := c.generateKey(k)
+	if err != nil {
+		return false, err
+	}
+	return c.cache.HasKey(key), nil
+}
+
 func (c *Cache[K, V]) Get(k K) (*V, error) {
 	key, err := c.generateKey(k)
 	if err != nil {

@@ -134,6 +134,13 @@ func (c *partitionedCache[K, V]) GetOrCreate(key K, value *V) (*V, bool) {
 	return value, false
 }
 
+func (c *partitionedCache[K, V]) HasKey(key K) bool {
+	c.lock(key)
+	defer c.unlock(key)
+	_, ok := c.getUnsafe(key)
+	return ok
+}
+
 func (c *partitionedCache[K, V]) PartitionLen(key K) int {
 	c.lock(key)
 	defer c.unlock(key)
