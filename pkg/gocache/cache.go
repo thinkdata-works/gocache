@@ -22,7 +22,7 @@ func (c *Cache[K, V]) HasKey(k K) (bool, error) {
 	return c.cache.HasKey(k), nil
 }
 
-func (c *Cache[K, V]) Get(k K, getter func(K) (*V, error)) (*V, error) {
+func (c *Cache[K, V]) Get(k K, getter func() (*V, error)) (*V, error) {
 	valpromise, alreadyExists := c.cache.GetOrCreate(k, promise.NewPromise[V]())
 	if alreadyExists {
 		val, err := valpromise.Wait()
@@ -34,7 +34,7 @@ func (c *Cache[K, V]) Get(k K, getter func(K) (*V, error)) (*V, error) {
 
 	// otherwise, get
 	go func() {
-		v, err := getter(k)
+		v, err := getter()
 		if err != nil {
 			valpromise.Reject(err)
 			return
