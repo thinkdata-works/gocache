@@ -24,7 +24,6 @@ type partitionedCache[K comparable, V any] struct {
 	maps             []map[K]*entry[K, V]
 	mu               []*sync.Mutex
 	ttl              time.Duration
-	evictionCallback *func(K, *V)
 }
 
 func hash(s string) uint32 {
@@ -58,10 +57,6 @@ func newPartitionedCached[K comparable, V any](sizePerPartition int, numPartitio
 	return cache
 }
 
-func (c *partitionedCache[K, V]) setEvictionCallback(f func(K, *V)) {
-	c.evictionCallback = &f
-}
-
 func (c *partitionedCache[K, V]) partition(key K) uint32 {
 	return hash(fmt.Sprintf("%v", key)) % uint32(c.numPartitions)
 }
@@ -93,9 +88,6 @@ func (c *partitionedCache[K, V]) getUnsafe(key K) (*V, bool) {
 	// entry has expired, remove it
 	delete(c.maps[partition], key)
 	c.lru[partition].delete(key)
-	if c.evictionCallback != nil {
-		(*c.evictionCallback)(key, entry.value)
-	}
 
 	return nil, false
 }
@@ -117,9 +109,6 @@ func (c *partitionedCache[K, V]) putUnsafe(key K, value *V) {
 
 		// remove oldest entry
 		delete(c.maps[partition], oldest.key)
-		if c.evictionCallback != nil {
-			(*c.evictionCallback)(oldest.key, oldest.value)
-		}
 	}
 
 	e := &entry[K, V]{

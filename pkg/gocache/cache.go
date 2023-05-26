@@ -44,11 +44,3 @@ func (c *Cache[K, V]) Get(k K, getter func() (*V, error)) (*V, error) {
 
 	return valpromise.Wait()
 }
-
-func (c *Cache[K, V]) SetEvictionCallback(cb func(K, *V)) {
-	callback := func(k K, vp *promise.Promise[V]) {
-		v, _ := vp.Wait()
-		cb(k, v)
-	}
-	c.cache.setEvictionCallback(callback)
-}
