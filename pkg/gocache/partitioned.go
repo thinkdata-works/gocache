@@ -46,6 +46,7 @@ func newPartitionedCached[K comparable, V any](sizePerPartition int, numPartitio
 		lru:              make([]*lruQueue[K, V], numPartitions),
 		maps:             make([]map[K]*entry[K, V], numPartitions),
 		mu:               make([]*sync.Mutex, numPartitions),
+		ttl:              ttl,
 	}
 
 	for i := 0; i < numPartitions; i++ {
@@ -72,6 +73,7 @@ func (c *partitionedCache[K, V]) unlock(key K) {
 func (c *partitionedCache[K, V]) getUnsafe(key K) (*V, bool) {
 	partition := c.partition(key)
 	entry, ok := c.maps[partition][key]
+
 	if !ok {
 		// no entry
 		return nil, false
@@ -94,7 +96,7 @@ func (c *partitionedCache[K, V]) getUnsafe(key K) (*V, bool) {
 
 func (c *partitionedCache[K, V]) putUnsafe(key K, value *V) {
 	partition := c.partition(key)
-	existing, ok := c.maps[c.partition(key)][key]
+	existing, ok := c.maps[partition][key]
 	if ok {
 		// already exists, overwrite value
 		existing.value = value
@@ -132,6 +134,13 @@ func (c *partitionedCache[K, V]) GetOrCreate(key K, value *V) (*V, bool) {
 	c.putUnsafe(key, value)
 	c.unlock(key)
 	return value, false
+}
+
+func (c *partitionedCache[K, V]) Put(key K, value *V) {
+	c.lock(key)
+	defer c.unlock(key)
+
+	c.putUnsafe(key, value)
 }
 
 func (c *partitionedCache[K, V]) HasKey(key K) bool {

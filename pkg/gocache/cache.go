@@ -6,37 +6,24 @@ import (
 	"github.com/thinkdata-works/gopromise/pkg/promise"
 )
 
-type Cache[K any, V any] struct {
-	getter      func(K) (*V, error)
-	generateKey func(K) (string, error)
-	cache       *partitionedCache[string, promise.Promise[V]]
+type Cache[K comparable, V any] struct {
+	cache *partitionedCache[K, promise.Promise[V]]
 }
 
-func NewCache[K any, V any](partitionSize, totalPartitions int, cacheExpiry time.Duration, getter func(K) (*V, error), keygen func(K) (string, error)) *Cache[K, V] {
+func NewCache[K comparable, V any](partitionSize, totalPartitions int, cacheExpiry time.Duration) *Cache[K, V] {
 	return &Cache[K, V]{
-		cache: newPartitionedCached[string, promise.Promise[V]](
+		cache: newPartitionedCached[K, promise.Promise[V]](
 			partitionSize, totalPartitions, cacheExpiry,
 		),
-		getter:      getter,
-		generateKey: keygen,
 	}
 }
 
 func (c *Cache[K, V]) HasKey(k K) (bool, error) {
-	key, err := c.generateKey(k)
-	if err != nil {
-		return false, err
-	}
-	return c.cache.HasKey(key), nil
+	return c.cache.HasKey(k), nil
 }
 
-func (c *Cache[K, V]) Get(k K) (*V, error) {
-	key, err := c.generateKey(k)
-	if err != nil {
-		return c.getter(k)
-	}
-
-	valpromise, alreadyExists := c.cache.GetOrCreate(key, promise.NewPromise[V]())
+func (c *Cache[K, V]) Get(k K, getter func() (*V, error)) (*V, error) {
+	valpromise, alreadyExists := c.cache.GetOrCreate(k, promise.NewPromise[V]())
 	if alreadyExists {
 		val, err := valpromise.Wait()
 		if err != nil {
@@ -47,7 +34,7 @@ func (c *Cache[K, V]) Get(k K) (*V, error) {
 
 	// otherwise, get
 	go func() {
-		v, err := c.getter(k)
+		v, err := getter()
 		if err != nil {
 			valpromise.Reject(err)
 			return

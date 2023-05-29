@@ -22,11 +22,29 @@ func randLetter() string {
 	return string(letterRunes[rand.Intn(len(letterRunes))])
 }
 
+// go test -v -run TestPartitionedCache$ ./pkg/gocache
+func TestPartitionedCache(t *testing.T) {
+	sizeOfPartition := 16
+	numPartitions := 4
+	num := 6
+
+	cache := newPartitionedCached[string, int](sizeOfPartition, numPartitions, 1*time.Hour)
+	_, exists := cache.GetOrCreate("A", &num)
+	assert.False(t, exists)
+
+	exists = cache.HasKey("A")
+	assert.True(t, exists)
+
+	val, exists := cache.GetOrCreate("A", &num)
+	assert.True(t, exists)
+	assert.Equal(t, 6, *val)
+}
+
 func TestPartitionedCacheEviction(t *testing.T) {
 	sizeOfPartition := 16
 	numPartitions := 4
-	cache := newPartitionedCached[string, int](sizeOfPartition, numPartitions, time.Hour)
 
+	cache := newPartitionedCached[string, int](sizeOfPartition, numPartitions, time.Hour)
 	for i := 0; i < 100000; i++ {
 		key := randString(16)
 		_, existsAlready := cache.GetOrCreate(key, nil)
@@ -36,7 +54,6 @@ func TestPartitionedCacheEviction(t *testing.T) {
 }
 
 func TestPartitionedCacheTTL(t *testing.T) {
-
 	sizeOfPartition := 16
 	numPartitions := 4
 	cache := newPartitionedCached[string, int](sizeOfPartition, numPartitions, time.Microsecond)
@@ -50,12 +67,7 @@ func TestPartitionedCacheTTL(t *testing.T) {
 	assert.False(t, existsAlready)
 }
 
-type testEntry struct {
-	value int
-}
-
 func TestPartitionedCacheAsyncTest(t *testing.T) {
-
 	sizeOfPartition := 640
 	numPartitions := 4
 	cache := newPartitionedCached[string, int](sizeOfPartition, numPartitions, time.Second)
