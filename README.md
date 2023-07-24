@@ -41,7 +41,7 @@ func NewUserService() *UserService {
 	}
 }
 
-func (u *UserService) get(id string) (*User, error) {
+func (u *UserService) Get(id string) (*User, error) {
 	user, err := u.userCache.Get(id, func() (*User, error) {
 		r, err := http.Get(fmt.Sprintf("http://users:80/%s", id))
 		if err != nil {
