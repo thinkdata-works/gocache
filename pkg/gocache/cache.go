@@ -2,17 +2,15 @@ package gocache
 
 import (
 	"time"
-
-	"github.com/thinkdata-works/gopromise/pkg/promise"
 )
 
 type Cache[K comparable, V any] struct {
-	cache *partitionedCache[K, promise.Promise[V]]
+	cache *partitionedCache[K, Promise[V]]
 }
 
 func NewCache[K comparable, V any](partitionSize, totalPartitions int, cacheExpiry time.Duration) *Cache[K, V] {
 	return &Cache[K, V]{
-		cache: newPartitionedCached[K, promise.Promise[V]](
+		cache: newPartitionedCached[K, Promise[V]](
 			partitionSize, totalPartitions, cacheExpiry,
 		),
 	}
@@ -23,7 +21,7 @@ func (c *Cache[K, V]) HasKey(k K) (bool, error) {
 }
 
 func (c *Cache[K, V]) Get(k K, getter func() (*V, error)) (*V, error) {
-	valpromise, alreadyExists := c.cache.GetOrCreate(k, promise.NewPromise[V]())
+	valpromise, alreadyExists := c.cache.GetOrCreate(k, NewPromise[V]())
 	if alreadyExists {
 		val, err := valpromise.Wait()
 		if err != nil {
