@@ -6,7 +6,7 @@ gocache is a partitioned cache module with generic support. It uses gopromise in
 
 ## Requirements
 
-gopipeline requires Go >= 1.18 since it relies on generic support
+gocache requires Go >= 1.18 since it relies on generic support
 
 ## Installation
 
@@ -23,7 +23,7 @@ import (
 	"io/ioutil"
 	"context"
 	"net/http"
-	"github.com/thinkdata-works/gopipeline/pkg/gocache"
+	"github.com/thinkdata-works/gocache/pkg/gocache"
 )
 
 type User struct {
