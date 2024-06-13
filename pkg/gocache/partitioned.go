@@ -134,7 +134,7 @@ func (c *partitionedCache[K, V]) putUnsafe(key K, value *V) {
 	c.lru[partition].push(e)
 }
 
-func (c *partitionedCache[K, V]) GetOrCreate(key K, value *V) (*V, bool, *Promise[bool]) {
+func (c *partitionedCache[K, V]) getOrCreate(key K, value *V) (*V, bool, *Promise[bool]) {
 	p := NewPromise[bool]()
 	// first, try to read the value by acquiring the read lock only
 	c.rUpgradeableLock(key)
