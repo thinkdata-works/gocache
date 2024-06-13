@@ -29,13 +29,15 @@ func TestPartitionedCache(t *testing.T) {
 	num := 6
 
 	cache := newPartitionedCached[string, int](sizeOfPartition, numPartitions, 1*time.Hour)
-	_, exists := cache.GetOrCreate("A", &num)
+	_, exists, p := cache.GetOrCreate("A", &num)
 	assert.False(t, exists)
+
+	p.Wait()
 
 	exists = cache.HasKey("A")
 	assert.True(t, exists)
 
-	val, exists := cache.GetOrCreate("A", &num)
+	val, exists, _ := cache.GetOrCreate("A", &num)
 	assert.True(t, exists)
 	assert.Equal(t, 6, *val)
 }
@@ -47,8 +49,9 @@ func TestPartitionedCacheEviction(t *testing.T) {
 	cache := newPartitionedCached[string, int](sizeOfPartition, numPartitions, time.Hour)
 	for i := 0; i < 100000; i++ {
 		key := randString(16)
-		_, existsAlready := cache.GetOrCreate(key, nil)
+		_, existsAlready, p := cache.GetOrCreate(key, nil)
 		assert.False(t, existsAlready)
+		p.Wait()
 		assert.LessOrEqual(t, cache.PartitionLen(key), sizeOfPartition)
 	}
 }
@@ -58,12 +61,13 @@ func TestPartitionedCacheTTL(t *testing.T) {
 	numPartitions := 4
 	cache := newPartitionedCached[string, int](sizeOfPartition, numPartitions, time.Microsecond)
 
-	_, existsAlready := cache.GetOrCreate("A", nil)
+	_, existsAlready, p := cache.GetOrCreate("A", nil)
 	assert.False(t, existsAlready)
+	p.Wait()
 
 	time.Sleep(time.Millisecond)
 
-	_, existsAlready = cache.GetOrCreate("A", nil)
+	_, existsAlready, _ = cache.GetOrCreate("A", nil)
 	assert.False(t, existsAlready)
 }
 
@@ -81,7 +85,8 @@ func TestPartitionedCacheAsyncTest(t *testing.T) {
 			for j := 0; j < numActions; j++ {
 				v := j
 				k := randLetter()
-				cache.GetOrCreate(k, &v)
+				_, _, p := cache.GetOrCreate(k, &v)
+				p.Wait()
 				assert.GreaterOrEqual(t, cache.PartitionLen(k), 1)
 				assert.LessOrEqual(t, cache.PartitionLen(k), sizeOfPartition)
 				time.Sleep(time.Millisecond)

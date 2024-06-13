@@ -21,7 +21,7 @@ func (c *Cache[K, V]) HasKey(k K) (bool, error) {
 }
 
 func (c *Cache[K, V]) Get(k K, getter func() (*V, error)) (*V, error) {
-	valpromise, alreadyExists := c.cache.GetOrCreate(k, NewPromise[V]())
+	valpromise, alreadyExists, _ := c.cache.GetOrCreate(k, NewPromise[V]())
 	if alreadyExists {
 		val, err := valpromise.Wait()
 		if err != nil {

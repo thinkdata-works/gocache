@@ -134,20 +134,30 @@ func (c *partitionedCache[K, V]) putUnsafe(key K, value *V) {
 	c.lru[partition].push(e)
 }
 
-func (c *partitionedCache[K, V]) GetOrCreate(key K, value *V) (*V, bool) {
+func (c *partitionedCache[K, V]) GetOrCreate(key K, value *V) (*V, bool, *Promise[bool]) {
+	p := NewPromise[bool]()
 	// first, try to read the value by acquiring the read lock only
 	c.rUpgradeableLock(key)
-	defer c.rUpgradeableUnlock(key)
 	v, ok := c.getUnsafe(key)
 	if ok {
-		return v, true
+		res := true
+		c.rUpgradeableUnlock(key)
+		p.Resolve(&res)
+		return v, true, p
 	}
 
 	// if the value was not present, we need to store it instead,
-	// so upgrade to a write lock
-	c.wUpgradeLock(key)
-	c.putUnsafe(key, value)
-	return value, false
+	// so upgrade to a write lock and write the value asynchronously
+	defer func() {
+		go func() {
+			res := false
+			c.wUpgradeLock(key)
+			c.putUnsafe(key, value)
+			c.rUpgradeableUnlock(key)
+			p.Resolve(&res)
+		}()
+	}()
+	return value, false, p
 }
 
 func (c *partitionedCache[K, V]) HasKey(key K) bool {
