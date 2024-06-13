@@ -3,7 +3,6 @@ package gocache
 import (
 	"fmt"
 	"hash/fnv"
-	"sync"
 	"time"
 )
 
@@ -22,7 +21,7 @@ type partitionedCache[K comparable, V any] struct {
 	sizePerPartition int
 	lru              []*lruQueue[K, V]
 	maps             []map[K]*entry[K, V]
-	mu               []*sync.Mutex
+	mu               []*UpgradableRWMutex
 	ttl              time.Duration
 }
 
@@ -45,14 +44,14 @@ func newPartitionedCached[K comparable, V any](sizePerPartition int, numPartitio
 		sizePerPartition: sizePerPartition,
 		lru:              make([]*lruQueue[K, V], numPartitions),
 		maps:             make([]map[K]*entry[K, V], numPartitions),
-		mu:               make([]*sync.Mutex, numPartitions),
+		mu:               make([]*UpgradableRWMutex, numPartitions),
 		ttl:              ttl,
 	}
 
 	for i := 0; i < numPartitions; i++ {
 		cache.lru[i] = newLRUQueue[K, V]()
 		cache.maps[i] = map[K]*entry[K, V]{}
-		cache.mu[i] = &sync.Mutex{}
+		cache.mu[i] = &UpgradableRWMutex{}
 	}
 
 	return cache
@@ -62,12 +61,24 @@ func (c *partitionedCache[K, V]) partition(key K) uint32 {
 	return hash(fmt.Sprintf("%v", key)) % uint32(c.numPartitions)
 }
 
-func (c *partitionedCache[K, V]) lock(key K) {
-	c.mu[c.partition(key)].Lock()
+func (c *partitionedCache[K, V]) rLock(key K) {
+	c.mu[c.partition(key)].RLock()
 }
 
-func (c *partitionedCache[K, V]) unlock(key K) {
-	c.mu[c.partition(key)].Unlock()
+func (c *partitionedCache[K, V]) rUnlock(key K) {
+	c.mu[c.partition(key)].RUnlock()
+}
+
+func (c *partitionedCache[K, V]) rUpgradeableLock(key K) {
+	c.mu[c.partition(key)].UpgradableRLock()
+}
+
+func (c *partitionedCache[K, V]) rUpgradeableUnlock(key K) {
+	c.mu[c.partition(key)].UpgradableRUnlock()
+}
+
+func (c *partitionedCache[K, V]) wUpgradeLock(key K) {
+	c.mu[c.partition(key)].UpgradeWLock()
 }
 
 func (c *partitionedCache[K, V]) getUnsafe(key K) (*V, bool) {
@@ -124,28 +135,31 @@ func (c *partitionedCache[K, V]) putUnsafe(key K, value *V) {
 }
 
 func (c *partitionedCache[K, V]) GetOrCreate(key K, value *V) (*V, bool) {
-	c.lock(key)
+	// first, try to read the value by acquiring the read lock only
+	c.rUpgradeableLock(key)
+	defer c.rUpgradeableUnlock(key)
 	v, ok := c.getUnsafe(key)
 	if ok {
-		c.unlock(key)
 		return v, true
 	}
 
+	// if the value was not present, we need to store it instead,
+	// so upgrade to a write lock
+	c.wUpgradeLock(key)
 	c.putUnsafe(key, value)
-	c.unlock(key)
 	return value, false
 }
 
 func (c *partitionedCache[K, V]) HasKey(key K) bool {
-	c.lock(key)
-	defer c.unlock(key)
+	c.rLock(key)
+	defer c.rUnlock(key)
 	_, ok := c.getUnsafe(key)
 	return ok
 }
 
 func (c *partitionedCache[K, V]) PartitionLen(key K) int {
-	c.lock(key)
-	defer c.unlock(key)
+	c.rLock(key)
+	defer c.rUnlock(key)
 
 	return len(c.maps[c.partition(key)])
 }
